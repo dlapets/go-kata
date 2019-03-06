@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -12,18 +11,20 @@ import (
 )
 
 func main() {
+	// change to something else if you don't want to see debug output:
 	log.SetOutput(os.Stdout)
 
+	fileName, re := Mode()
+
 	// there's definitely a more efficient way to do this.
-	rawData, err := ioutil.ReadFile("weather.dat")
+	rawData, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		log.Panicf("Failed to read file: %s", err)
+		log.Panicf("failed to read file: %s", err)
 	}
 
-	re := regexp.MustCompile(`^\s+(\d+)\s+(\d+)\*?\s+(\d+)\*?\s`)
-
-	bestDelta := math.MaxInt32
-	bestDayNum := 0
+	bestName := ""
+	bestDelta := 0
+	examined := 0
 
 	for i, row := range strings.Split(string(rawData), "\n") {
 		res := re.FindStringSubmatch(row)
@@ -33,21 +34,26 @@ func main() {
 		}
 		log.Printf("row %d: have %s %s %s", i, res[1], res[2], res[3])
 
-		dayNum := AtoiOrPanic(res[1])
-		maxTemp := AtoiOrPanic(res[2])
-		minTemp := AtoiOrPanic(res[3])
+		name := res[1]
+		lhs := AtoiOrPanic(res[2])
+		rhs := AtoiOrPanic(res[3])
 
-		if delta := Abs(maxTemp - minTemp); delta < bestDelta {
-			log.Printf("row %d: %d is better than %d (day %d)\n", i, delta, bestDelta, dayNum)
-			bestDayNum = dayNum
+		if delta := Abs(lhs - rhs); delta < bestDelta || examined == 0 {
+			log.Printf("row %d: %d is better than %d (name %s)\n", i, delta, bestDelta, name)
+			bestName = name
 			bestDelta = delta
 		} else {
-			log.Printf("row %d: %d is not better than %d (day %d)\n", i, delta, bestDelta, dayNum)
+			log.Printf("row %d: %d is not better than %d (name %s)\n", i, delta, bestDelta, name)
 		}
+		examined++
 	}
 
-	log.Printf("the best day was %d with delta %d\n", bestDayNum, bestDelta)
-	fmt.Println(bestDayNum)
+	if examined == 0 {
+		log.Panicf("no data found")
+	}
+
+	log.Printf("the best name was %s with delta %d\n", bestName, bestDelta)
+	fmt.Println(bestName)
 }
 
 func AtoiOrPanic(s string) int {
@@ -63,4 +69,23 @@ func Abs(i int) int {
 		return -1 * i
 	}
 	return i
+}
+
+func Mode() (fileName string, re *regexp.Regexp) {
+	mode := "weather"
+	if len(os.Args) > 1 && os.Args[1] == "football" {
+		mode = "football"
+	}
+
+	switch mode {
+	case "football":
+		re = regexp.MustCompile(`^\s+\d+\. (\w+)\s+\d+\s+\d+\s+\d+\s+\d+\s+(\d+)\s+-\s+(\d+) .*`)
+		fileName = "football.dat"
+	default:
+		re = regexp.MustCompile(`^\s+(\d+)\s+(\d+)\*?\s+(\d+)\*?\s`)
+		fileName = "weather.dat"
+	}
+
+	log.Printf("app running in %s mode using input from %s", mode, fileName)
+	return
 }
